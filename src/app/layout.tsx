@@ -7,8 +7,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Tempo - Modern SaaS Starter",
-  description: "A modern full-stack starter template powered by Next.js",
+  title: "Thehandine: Contactless Digital Menus for Restaurants",
+  description: "Thehandine empowers restaurants with contactless, customizable digital menus. Generate QR code menus in seconds, update items in real time, and delight guests on any device.",
 };
 
 export default function RootLayout({
@@ -18,10 +18,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <Script src="https://api.tempolabs.ai/proxy-asset?url=https://storage.googleapis.com/tempo-public-assets/error-handling.js" />
+      {/* <Script src="https://api.tempolabs.ai/proxy-asset?url=https://storage.googleapis.com/tempo-public-assets/error-handling.js" /> */}
       <body className={inter.className}>
         {children}
-        <TempoInit />
+        {/* <TempoInit /> */}
       </body>
     </html>
   );

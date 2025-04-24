@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu'
 import { Button } from './ui/button'
-import { UserCircle, Home } from 'lucide-react'
+import { Home,User, UserCircle, QrCode, Menu } from "lucide-react";
+
 import { useRouter } from 'next/navigation'
 
 export default function DashboardNavbar() {
@@ -20,9 +21,12 @@ export default function DashboardNavbar() {
     <nav className="w-full border-b border-gray-200 bg-white py-4">
       <div className="container mx-auto px-4 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Link href="/" prefetch className="text-xl font-bold">
-            Logo
-          </Link>
+        <Link href="/" prefetch className="text-xl font-bold flex items-center">
+          <QrCode className="w-6 h-6 mr-2 text-orange-600" />
+          <span className="font-bold text-gray-900">
+            The<span className="text-orange-600">Handine</span>
+          </span>
+        </Link>
         </div>
         <div className="flex gap-4 items-center">
           <DropdownMenu>

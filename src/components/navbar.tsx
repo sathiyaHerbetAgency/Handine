@@ -17,7 +17,7 @@ export default async function Navbar() {
         <Link href="/" prefetch className="text-xl font-bold flex items-center">
           <QrCode className="w-6 h-6 mr-2 text-orange-600" />
           <span className="font-bold text-gray-900">
-            Menu<span className="text-orange-600">QR</span>
+            The<span className="text-orange-600">Handine</span>
           </span>
         </Link>
 
