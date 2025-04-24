@@ -4,15 +4,16 @@ import { QrCode, Utensils } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-// Define types for your data structures
+//
+// ——— Types —————————————————————————————————————————————————————————————
 interface MenuItem {
   id: string;
   name: string;
   description?: string;
   price: number;
+  discount_percent?: number;
   is_available: boolean;
   display_order: number;
-  discount_percent?: number;
 }
 
 interface MenuSection {
@@ -24,15 +25,13 @@ interface MenuSection {
   menu_items: MenuItem[];
 }
 
-interface Props {
-  params: { id: string };
-}
+type Params = { params: { id: string } };
 
-export default async function MenuPage({ params }: Props) {
+export default async function MenuPage({ params }: Params) {
   const supabase = await createClient();
   const { id } = params;
 
-  // Fetch restaurant data
+  // ——— Fetch restaurant ——————————————————————————————————————
   const { data: restaurant, error: restaurantError } = await supabase
     .from("restaurants")
     .select("*")
@@ -43,21 +42,40 @@ export default async function MenuPage({ params }: Props) {
     return notFound();
   }
 
-  // Fetch menu sections with items
-  const { data: menuSections, error: sectionsError } = await supabase
-    .from<MenuSection, MenuSection>("menu_sections")
-    .select("id, name, description, discount_percent, display_order, menu_items(*)")
+  // ——— Fetch menu sections + items —————————————————————————————
+  const { data: rawSections, error: sectionsError } = await supabase
+    .from("menu_sections")   // no <...> here
+    .select(`
+      id,
+      name,
+      description,
+      discount_percent,
+      display_order,
+      menu_items (
+        id,
+        name,
+        description,
+        price,
+        discount_percent,
+        is_available,
+        display_order
+      )
+    `)
     .eq("restaurant_id", restaurant.id)
     .order("display_order", { ascending: true });
 
   if (sectionsError) {
-    // Optionally handle this error
-    return <div className="text-center py-12">Failed to load menu sections.</div>;
+    console.error(sectionsError);
+    return notFound();
   }
 
-  // Record menu view for analytics
+  // One‐time cast to your clean type
+  const menuSections: MenuSection[] = rawSections ?? [];
+
+  // ——— Record a view ————————————————————————————————————————
   await supabase.from("menu_views").insert({ restaurant_id: restaurant.id });
 
+  // ——— Render ——————————————————————————————————————————————————
   return (
     <div
       className="min-h-screen pb-16"
@@ -66,7 +84,7 @@ export default async function MenuPage({ params }: Props) {
         backgroundColor: "#fff",
       }}
     >
-      {/* Restaurant Header */}
+      {/* Header */}
       <div
         className="w-full h-40 bg-gray-200 relative"
         style={{
@@ -99,22 +117,23 @@ export default async function MenuPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Menu Content */}
+      {/* Menu */}
       <div className="max-w-3xl mx-auto px-4 py-8">
-        {menuSections && menuSections.length > 0 ? (
+        {menuSections.length > 0 ? (
           menuSections.map((section) => {
-            const secDisc = section.discount_percent ?? 0;
+            const secDisc = section.discount_percent || 0;
             const hasSectionDiscount = secDisc > 0;
-            const items: MenuItem[] = section.menu_items ?? [];
+
+            // filter & sort once per section
+            const items = section.menu_items
+              .filter((it) => it.is_available)
+              .sort((a, b) => a.display_order - b.display_order);
 
             return (
               <section key={section.id} className="mb-12">
-                {/* SECTION HEADER */}
                 <h2
                   className="text-xl font-bold pb-2 border-b flex items-center"
-                  style={{
-                    borderColor: restaurant.primary_color || "#f97316",
-                  }}
+                  style={{ borderColor: restaurant.primary_color || "#f97316" }}
                 >
                   {section.name}
                   {hasSectionDiscount && (
@@ -129,52 +148,50 @@ export default async function MenuPage({ params }: Props) {
                   </p>
                 )}
 
-                {/* ITEMS */}
                 <div className="space-y-6">
-                  {items
-                    .filter((item) => item.is_available)
-                    .sort((a, b) => a.display_order - b.display_order)
-                    .map((item) => {
-                      const itemDisc = item.discount_percent ?? 0;
-                      const effectiveDisc = hasSectionDiscount ? secDisc : itemDisc;
-                      const hasDiscount = effectiveDisc > 0;
-                      const finalPrice = hasDiscount
-                        ? item.price * (1 - effectiveDisc / 100)
-                        : item.price;
+                  {items.map((item) => {
+                    const itemDisc = item.discount_percent || 0;
+                    const effectiveDisc = hasSectionDiscount
+                      ? secDisc
+                      : itemDisc;
+                    const hasDiscount = effectiveDisc > 0;
+                    const finalPrice = hasDiscount
+                      ? item.price * (1 - effectiveDisc / 100)
+                      : item.price;
 
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex justify-between items-center"
-                        >
-                          <div>
-                            <h3 className="font-medium">{item.name}</h3>
-                            {item.description && (
-                              <p className="text-gray-600 text-sm mt-1">
-                                {item.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right font-medium">
-                            {hasDiscount ? (
-                              <>
-                                <span className="line-through text-gray-500 mr-2">
-                                  ₹{item.price.toFixed(2)}
-                                </span>
-                                <span>
-                                  ₹{finalPrice.toFixed(2)}{' '}
-                                  <small className="text-sm text-red-600">
-                                    ({effectiveDisc}% off)
-                                  </small>
-                                </span>
-                              </>
-                            ) : (
-                              <span>₹{item.price.toFixed(2)}</span>
-                            )}
-                          </div>
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex justify-between items-center"
+                      >
+                        <div>
+                          <h3 className="font-medium">{item.name}</h3>
+                          {item.description && (
+                            <p className="text-gray-600 text-sm mt-1">
+                              {item.description}
+                            </p>
+                          )}
                         </div>
-                      );
-                    })}
+                        <div className="text-right font-medium">
+                          {hasDiscount ? (
+                            <>
+                              <span className="line-through text-gray-500 mr-2">
+                                ₹{item.price.toFixed(2)}
+                              </span>
+                              <span>
+                                ₹{finalPrice.toFixed(2)}{" "}
+                                <small className="text-sm text-red-600">
+                                  ({effectiveDisc}% off)
+                                </small>
+                              </span>
+                            </>
+                          ) : (
+                            <span>₹{item.price.toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             );
