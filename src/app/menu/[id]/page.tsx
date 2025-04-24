@@ -105,7 +105,7 @@ export default async function MenuPage({
                 {/* ITEMS */}
                 <div className="space-y-6">
                   {(section.menu_items || [])
-                    .filter((i) => i.is_available)
+                    .filter<MenuItem>((i) => i.is_available)
                     .sort((a, b) => a.display_order - b.display_order)
                     .map((item) => {
                       // Only consider item.discount_percent if section has none
