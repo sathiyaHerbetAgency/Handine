@@ -1,44 +1,68 @@
-import { createClient, createPublicClient } from "../../../../supabase/server";
+import { createClient } from "../../../../supabase/server";
 import { notFound } from "next/navigation";
 import { QrCode, Utensils } from "lucide-react";
 
-type Props = { searchParams: string };
 export const dynamic = "force-dynamic";
 
-export default async function MenuPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const supabase = await createClient();
+// Define types for your data structures
+interface MenuItem {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  is_available: boolean;
+  display_order: number;
+  discount_percent?: number;
+}
 
-  // Grab the ID from the URL segment
+interface MenuSection {
+  id: string;
+  name: string;
+  description?: string;
+  discount_percent?: number;
+  display_order: number;
+  menu_items: MenuItem[];
+}
+
+interface Props {
+  params: { id: string };
+}
+
+export default async function MenuPage({ params }: Props) {
+  const supabase = await createClient();
   const { id } = params;
 
   // Fetch restaurant data
-  const { data: restaurant } = await supabase
+  const { data: restaurant, error: restaurantError } = await supabase
     .from("restaurants")
     .select("*")
     .eq("id", id)
     .maybeSingle();
 
-  // Fetch menu sections with items (including discount_percent on section)
-  const { data: menuSections } = await supabase
-    .from("menu_sections")
-    .select("*, discount_percent, menu_items(*)")
-    .eq("restaurant_id", restaurant?.id)
+  if (restaurantError || !restaurant) {
+    return notFound();
+  }
+
+  // Fetch menu sections with items
+  const { data: menuSections, error: sectionsError } = await supabase
+    .from<MenuSection>("menu_sections")
+    .select("id, name, description, discount_percent, display_order, menu_items(*)")
+    .eq("restaurant_id", restaurant.id)
     .order("display_order", { ascending: true });
 
+  if (sectionsError) {
+    // Optionally handle this error
+    return <div className="text-center py-12">Failed to load menu sections.</div>;
+  }
+
   // Record menu view for analytics
-  await supabase.from("menu_views").insert({
-    restaurant_id: restaurant?.id,
-  });
+  await supabase.from("menu_views").insert({ restaurant_id: restaurant.id });
 
   return (
     <div
       className="min-h-screen pb-16"
       style={{
-        fontFamily: restaurant?.font_family || "Inter",
+        fontFamily: restaurant.font_family || "Inter",
         backgroundColor: "#fff",
       }}
     >
@@ -46,8 +70,8 @@ export default async function MenuPage({
       <div
         className="w-full h-40 bg-gray-200 relative"
         style={{
-          backgroundColor: restaurant?.primary_color || "#f97316",
-          backgroundImage: restaurant?.banner_image
+          backgroundColor: restaurant.primary_color || "#f97316",
+          backgroundImage: restaurant.banner_image
             ? `url(${restaurant.banner_image})`
             : undefined,
           backgroundSize: "cover",
@@ -56,7 +80,7 @@ export default async function MenuPage({
       >
         <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
           <div className="text-center text-white">
-            {restaurant?.logo_image ? (
+            {restaurant.logo_image ? (
               <img
                 src={restaurant.logo_image}
                 alt={restaurant.name}
@@ -66,31 +90,32 @@ export default async function MenuPage({
               <div className="w-16 h-16 rounded-full bg-white mx-auto mb-2 flex items-center justify-center">
                 <Utensils
                   className="w-8 h-8"
-                  style={{ color: restaurant?.primary_color || "#f97316" }}
+                  style={{ color: restaurant.primary_color || "#f97316" }}
                 />
               </div>
             )}
-            <h1 className="text-2xl font-bold">{restaurant?.name}</h1>
+            <h1 className="text-2xl font-bold">{restaurant.name}</h1>
           </div>
         </div>
       </div>
 
       {/* Menu Content */}
       <div className="max-w-3xl mx-auto px-4 py-8">
-        {menuSections?.length ? (
+        {menuSections && menuSections.length > 0 ? (
           menuSections.map((section) => {
-            const secDisc = section.discount_percent || 0;
+            const secDisc = section.discount_percent ?? 0;
             const hasSectionDiscount = secDisc > 0;
+            const items: MenuItem[] = section.menu_items ?? [];
 
             return (
               <section key={section.id} className="mb-12">
                 {/* SECTION HEADER */}
                 <h2
-                    className="text-xl font-bold pb-2 border-b flex items-center"
-                    style={{
-                      borderColor: restaurant?.primary_color || "#f97316",
-                    }}
-                  >
+                  className="text-xl font-bold pb-2 border-b flex items-center"
+                  style={{
+                    borderColor: restaurant.primary_color || "#f97316",
+                  }}
+                >
                   {section.name}
                   {hasSectionDiscount && (
                     <span className="ml-2 text-red-600 text-sm">
@@ -99,20 +124,19 @@ export default async function MenuPage({
                   )}
                 </h2>
                 {section.description && (
-                  <p className="text-gray-600 mb-4">{section.description}</p>
+                  <p className="text-gray-600 mb-4">
+                    {section.description}
+                  </p>
                 )}
 
                 {/* ITEMS */}
                 <div className="space-y-6">
-                {((section.menu_items ?? []) as MenuItem[])
-                  .filter(item => item.is_available)
+                  {items
+                    .filter((item) => item.is_available)
                     .sort((a, b) => a.display_order - b.display_order)
                     .map((item) => {
-                      // Only consider item.discount_percent if section has none
-                      const itemDisc = item.discount_percent || 0;
-                      const effectiveDisc = hasSectionDiscount
-                        ? secDisc
-                        : itemDisc;
+                      const itemDisc = item.discount_percent ?? 0;
+                      const effectiveDisc = hasSectionDiscount ? secDisc : itemDisc;
                       const hasDiscount = effectiveDisc > 0;
                       const finalPrice = hasDiscount
                         ? item.price * (1 - effectiveDisc / 100)
@@ -138,7 +162,7 @@ export default async function MenuPage({
                                   ₹{item.price.toFixed(2)}
                                 </span>
                                 <span>
-                                  ₹{finalPrice.toFixed(2)}{" "}
+                                  ₹{finalPrice.toFixed(2)}{' '}
                                   <small className="text-sm text-red-600">
                                     ({effectiveDisc}% off)
                                   </small>
