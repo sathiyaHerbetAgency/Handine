@@ -162,7 +162,7 @@ export default function NewRestaurant() {
                 onChange={handleChange}
                 placeholder="e.g. Bistro Italiano"
                 required
-                disabled={hasRestaurant}
+                 disabled={hasRestaurant ?? false}
               />
             </div>
 
@@ -175,7 +175,7 @@ export default function NewRestaurant() {
                 onChange={handleChange}
                 placeholder="Brief description of your restaurant"
                 rows={3}
-                disabled={hasRestaurant}
+                 disabled={hasRestaurant ?? false}
               />
             </div>
 
@@ -189,7 +189,7 @@ export default function NewRestaurant() {
                   value={formData.primaryColor}
                   onChange={handleChange}
                   className="w-12 h-12 p-1"
-                  disabled={hasRestaurant}
+                   disabled={hasRestaurant ?? false}
                 />
                 <Input
                   type="text"
@@ -197,7 +197,7 @@ export default function NewRestaurant() {
                   onChange={handleChange}
                   name="primaryColor"
                   className="flex-1"
-                  disabled={hasRestaurant}
+                   disabled={hasRestaurant ?? false}
                 />
               </div>
             </div>

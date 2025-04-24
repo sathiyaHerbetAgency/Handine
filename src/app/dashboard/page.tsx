@@ -46,7 +46,7 @@ export default async function Dashboard() {
           <Button
             asChild
             className="bg-orange-600 hover:bg-orange-700"
-            disabled={hasRestaurant}
+             disabled={hasRestaurant ?? false}
             title={
               hasRestaurant
                 ? "You can only create one restaurant in the current plan"
