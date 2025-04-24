@@ -45,7 +45,7 @@ export default async function MenuPage({ params }: Props) {
 
   // Fetch menu sections with items
   const { data: menuSections, error: sectionsError } = await supabase
-    .from<MenuSection>("menu_sections")
+    .from<MenuSection, MenuSection>("menu_sections")
     .select("id, name, description, discount_percent, display_order, menu_items(*)")
     .eq("restaurant_id", restaurant.id)
     .order("display_order", { ascending: true });
