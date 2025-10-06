@@ -12,10 +12,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Save, Trash } from "lucide-react";
-import { useState } from "react";
+import {
+  Loader2,
+  Save,
+  Trash,
+  UploadCloud,
+  Image as ImageIcon,
+} from "lucide-react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from './../../../supabase/client';
+import { createClient } from "./../../../supabase/client";
 
 type Restaurant = {
   id: string;
@@ -27,12 +33,14 @@ type Restaurant = {
   font_family?: string;
 };
 
-type Props = {
-  restaurant: Restaurant;
-};
+type Props = { restaurant: Restaurant };
+
+const BUCKET = "menu-images"; // your storage bucket
 
 export default function RestaurantSettings({ restaurant }: Props) {
   const router = useRouter();
+  const supabase = createClient();
+
   const [formData, setFormData] = useState({
     name: restaurant.name,
     description: restaurant.description || "",
@@ -43,21 +51,81 @@ export default function RestaurantSettings({ restaurant }: Props) {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [uploading, setUploading] = useState<{
+    banner?: boolean;
+    logo?: boolean;
+  }>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-const supabase=createClient()
+
+  // ⬇️ Refs to trigger native file pickers
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    >
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // --- Upload helpers -------------------------------------------------------
+  const uploadImage = async (file: File, kind: "banner" | "logo") => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024)
+      throw new Error("Please upload images under 5MB.");
+
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+    const path = `${restaurant.id}/branding/${kind}-${Date.now()}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { cacheControl: "3600", upsert: false });
+
+    if (error) throw error;
+
+    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
+    return pub.publicUrl as string;
+  };
+
+  const onPickBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading((u) => ({ ...u, banner: true }));
+    setError(null);
+    try {
+      const url = await uploadImage(file, "banner");
+      setFormData((p) => ({ ...p, bannerImage: url }));
+      setSuccess("Banner image uploaded. Click Save to apply.");
+    } catch (err: any) {
+      setError(err.message || "Failed to upload banner image");
+    } finally {
+      setUploading((u) => ({ ...u, banner: false }));
+      // allow picking the same file again later
+      if (bannerInputRef.current) bannerInputRef.current.value = "";
+    }
+  };
+
+  const onPickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading((u) => ({ ...u, logo: true }));
+    setError(null);
+    try {
+      const url = await uploadImage(file, "logo");
+      setFormData((p) => ({ ...p, logoImage: url }));
+      setSuccess("Logo uploaded. Click Save to apply.");
+    } catch (err: any) {
+      setError(err.message || "Failed to upload logo");
+    } finally {
+      setUploading((u) => ({ ...u, logo: false }));
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
+  // --- Save/Delete ----------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -65,21 +133,15 @@ const supabase=createClient()
     setSuccess(null);
 
     try {
-      if (!formData.name.trim()) {
-        throw new Error("Restaurant name is required");
-      }
-
-      // Ensure we're sending valid URLs for images
-      const bannerImage = formData.bannerImage?.trim() || null;
-      const logoImage = formData.logoImage?.trim() || null;
+      if (!formData.name.trim()) throw new Error("Restaurant name is required");
 
       const { error } = await supabase
         .from("restaurants")
         .update({
           name: formData.name,
           description: formData.description,
-          banner_image: bannerImage,
-          logo_image: logoImage,
+          banner_image: formData.bannerImage?.trim() || null,
+          logo_image: formData.logoImage?.trim() || null,
           primary_color: formData.primaryColor,
           font_family: formData.fontFamily,
         })
@@ -90,7 +152,6 @@ const supabase=createClient()
       setSuccess("Restaurant settings updated successfully");
       router.refresh();
     } catch (err: any) {
-      console.error("Error updating restaurant:", err);
       setError(err.message || "Failed to update restaurant settings");
     } finally {
       setIsLoading(false);
@@ -100,26 +161,20 @@ const supabase=createClient()
   const handleDelete = async () => {
     if (
       !confirm(
-        "Are you sure you want to delete this restaurant? This action cannot be undone.",
+        "Are you sure you want to delete this restaurant? This action cannot be undone."
       )
-    ) {
+    )
       return;
-    }
-
     setIsLoading(true);
     setError(null);
-
     try {
       const { error } = await supabase
         .from("restaurants")
         .delete()
         .eq("id", restaurant.id);
-
       if (error) throw error;
-
       router.push("/dashboard");
     } catch (err: any) {
-      console.error("Error deleting restaurant:", err);
       setError(err.message || "Failed to delete restaurant");
       setIsLoading(false);
     }
@@ -135,19 +190,20 @@ const supabase=createClient()
               Update your restaurant profile and appearance settings
             </CardDescription>
           </CardHeader>
+
           <CardContent className="space-y-6">
             {error && (
               <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
                 {error}
               </div>
             )}
-
             {success && (
               <div className="bg-green-50 text-green-600 p-3 rounded-md text-sm">
                 {success}
               </div>
             )}
 
+            {/* Name / Description */}
             <div className="space-y-2">
               <Label htmlFor="name">Restaurant Name *</Label>
               <Input
@@ -170,30 +226,117 @@ const supabase=createClient()
               />
             </div>
 
+            {/* Banner + Logo uploaders */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Banner */}
               <div className="space-y-2">
-                <Label htmlFor="bannerImage">Banner Image URL</Label>
-                <Input
-                  id="bannerImage"
-                  name="bannerImage"
-                  value={formData.bannerImage}
-                  onChange={handleChange}
-                  placeholder="https://example.com/banner.jpg"
-                />
+                <Label>Banner Image</Label>
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <div className="aspect-[3/1] w-full overflow-hidden rounded-md bg-white grid place-items-center">
+                    {formData.bannerImage ? (
+                      <img
+                        src={formData.bannerImage}
+                        alt="Banner preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center text-xs text-muted-foreground">
+                        <ImageIcon className="mb-1 h-6 w-6" />
+                        3:1 cover image
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    {/* Hidden input + ref */}
+                    <input
+                      ref={bannerInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={onPickBanner}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => bannerInputRef.current?.click()}
+                      disabled={!!uploading.banner}
+                    >
+                      {uploading.banner ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                      )}
+                      {uploading.banner ? "Uploading..." : "Upload"}
+                    </Button>
+
+                    <Input
+                      placeholder="or paste an image URL"
+                      name="bannerImage"
+                      value={formData.bannerImage}
+                      onChange={handleChange}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
               </div>
 
+              {/* Logo */}
               <div className="space-y-2">
-                <Label htmlFor="logoImage">Logo Image URL</Label>
-                <Input
-                  id="logoImage"
-                  name="logoImage"
-                  value={formData.logoImage}
-                  onChange={handleChange}
-                  placeholder="https://example.com/logo.jpg"
-                />
+                <Label>Logo Image</Label>
+                <div className="rounded-lg border bg-muted/20 p-3">
+                  <div className="h-24 w-24 overflow-hidden rounded-md bg-white grid place-items-center">
+                    {formData.logoImage ? (
+                      <img
+                        src={formData.logoImage}
+                        alt="Logo preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center text-xs text-muted-foreground">
+                        <ImageIcon className="mb-1 h-6 w-6" />
+                        1:1 logo
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={onPickLogo}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={!!uploading.logo}
+                    >
+                      {uploading.logo ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                      )}
+                      {uploading.logo ? "Uploading..." : "Upload"}
+                    </Button>
+
+                    <Input
+                      placeholder="or paste an image URL"
+                      name="logoImage"
+                      value={formData.logoImage}
+                      onChange={handleChange}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
+            {/* Theme */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="primaryColor">Primary Color</Label>
@@ -222,20 +365,39 @@ const supabase=createClient()
                   id="fontFamily"
                   name="fontFamily"
                   value={formData.fontFamily}
-                  style={{fontFamily:formData.fontFamily}}
+                  style={{ fontFamily: formData.fontFamily }}
                   onChange={handleChange}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  <option  style={{fontFamily:"Inter"}} className="font-family-[Inter]" value="Inter">Inter</option>
-                  <option  style={{fontFamily:"Roboto"}} className="font-family-[Roboto]" value="Roboto">Roboto</option>
-                  <option style={{fontFamily:"Poppins"}}  className="font-family-[Poppins]" value="Poppins">Poppins</option>
-                  <option  style={{fontFamily:"LexendaDeca"}} className="font-family-[LexendaDeca]" value="LexendaDeca">LexendaDeca</option>
-                  <option style={{fontFamily:"Montserrat"}} className="font-family-[Montserrat]" value="Montserrat">Montserrat</option>
-                  <option style={{fontFamily:"Open Sans"}}  className="font-family-[Open Sans]" value="Open Sans">Open Sans</option>
+                  <option style={{ fontFamily: "Inter" }} value="Inter">
+                    Inter
+                  </option>
+                  <option style={{ fontFamily: "Roboto" }} value="Roboto">
+                    Roboto
+                  </option>
+                  <option style={{ fontFamily: "Poppins" }} value="Poppins">
+                    Poppins
+                  </option>
+                  <option
+                    style={{ fontFamily: "Lexend Deca" }}
+                    value="Lexend Deca"
+                  >
+                    Lexend Deca
+                  </option>
+                  <option
+                    style={{ fontFamily: "Montserrat" }}
+                    value="Montserrat"
+                  >
+                    Montserrat
+                  </option>
+                  <option style={{ fontFamily: "Open Sans" }} value="Open Sans">
+                    Open Sans
+                  </option>
                 </select>
               </div>
             </div>
           </CardContent>
+
           <CardFooter className="flex justify-between">
             <Button
               type="button"
@@ -250,7 +412,7 @@ const supabase=createClient()
             <Button
               type="submit"
               className="bg-orange-600 hover:bg-orange-700"
-              disabled={isLoading}
+              disabled={isLoading || uploading.banner || uploading.logo}
             >
               {isLoading ? (
                 <>

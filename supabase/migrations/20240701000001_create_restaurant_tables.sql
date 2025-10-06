@@ -66,6 +66,7 @@ DROP TRIGGER IF EXISTS trg_set_updated_at_menu_items ON menu_items;
 CREATE TRIGGER trg_set_updated_at_menu_items
   BEFORE UPDATE ON menu_items
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+alter table menu_items add column image_url text;
 
 -- Create qr_codes table
 CREATE TABLE IF NOT EXISTS qr_codes (
@@ -110,6 +111,13 @@ CREATE POLICY "Allow public SELECT on restaurants"
   FOR SELECT
   TO public
   USING ( true );
+
+  alter table public.restaurants
+  add column if not exists status text default 'inactive';
+
+-- index for quick lookups
+create index if not exists restaurants_user_id_idx on public.restaurants(user_id);
+
 
 -- (Optional) If you want only the owner to INSERT/UPDATE their own rows:
 CREATE POLICY owner_modify_restaurants

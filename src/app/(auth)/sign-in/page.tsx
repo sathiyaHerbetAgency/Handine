@@ -12,6 +12,8 @@ interface LoginProps {
 
 export default async function SignInPage({ searchParams }: LoginProps) {
   const message = await searchParams;
+ console.log("aa")
+console.log("SUPABASE_URL =", process.env.NEXT_PUBLIC_SUPABASE_URL)
 
   if ("message" in message) {
     return (

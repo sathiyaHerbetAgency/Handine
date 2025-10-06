@@ -2,6 +2,7 @@ import { createClient } from "../../../supabase/server";
 import { InfoIcon, PlusCircle, QrCode, Utensils, Settings } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import SubscriptionBanner from "./SubscriptionBanner"
 import {
   Card,
   CardContent,
@@ -36,6 +37,7 @@ export default async function Dashboard() {
     <main className="w-full">
       <div className="container mx-auto px-4 py-8 flex flex-col gap-8">
         {/* Header Section */}
+        <SubscriptionBanner />
         <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Restaurant Dashboard</h1>
@@ -46,7 +48,7 @@ export default async function Dashboard() {
           <Button
             asChild
             className="bg-orange-600 hover:bg-orange-700"
-             disabled={hasRestaurant ?? false}
+            disabled={hasRestaurant ?? false}
             title={
               hasRestaurant
                 ? "You can only create one restaurant in the current plan"
