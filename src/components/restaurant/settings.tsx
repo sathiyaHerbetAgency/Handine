@@ -81,58 +81,69 @@ export default function RestaurantSettings({ restaurant }: Props) {
   };
 
   // --- Upload helpers -------------------------------------------------------
-  const uploadImage = async (file: File, kind: "banner" | "logo") => {
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024)
-      throw new Error("Please upload images under 5MB.");
+const uploadImage = async (
+  file: File,
+  kind: "banner" | "logo"
+): Promise<string> => {
+  if (!file) throw new Error("No file selected.");
+  if (file.size > 5 * 1024 * 1024)
+    throw new Error("Please upload images under 5MB.");
 
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const path = `${restaurant.id}/branding/${kind}-${Date.now()}.${ext}`;
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${restaurant.id}/branding/${kind}-${Date.now()}.${ext}`;
 
-    const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .upload(path, file, { cacheControl: "3600", upsert: false });
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, { cacheControl: "3600", upsert: false });
 
-    if (error) throw error;
+  if (error) throw error;
+  if (!data?.path) throw new Error("Upload failed: missing path.");
 
-    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
-    return pub.publicUrl as string;
-  };
+  const { data: pub, error: pubErr } = supabase.storage
+    .from(BUCKET)
+    .getPublicUrl(data.path);
+  if (pubErr) throw pubErr;
 
-  const onPickBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading((u) => ({ ...u, banner: true }));
-    setError(null);
-    try {
-      const url = await uploadImage(file, "banner");
-      setFormData((p) => ({ ...p, bannerImage: url }));
-      setSuccess("Banner image uploaded. Click Save to apply.");
-    } catch (err: any) {
-      setError(err.message || "Failed to upload banner image");
-    } finally {
-      setUploading((u) => ({ ...u, banner: false }));
-      // allow picking the same file again later
-      if (bannerInputRef.current) bannerInputRef.current.value = "";
-    }
-  };
+  const url = pub.publicUrl;
+  if (!url) throw new Error("Upload failed: no public URL returned.");
+  return url;
+};
 
-  const onPickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading((u) => ({ ...u, logo: true }));
-    setError(null);
-    try {
-      const url = await uploadImage(file, "logo");
-      setFormData((p) => ({ ...p, logoImage: url }));
-      setSuccess("Logo uploaded. Click Save to apply.");
-    } catch (err: any) {
-      setError(err.message || "Failed to upload logo");
-    } finally {
-      setUploading((u) => ({ ...u, logo: false }));
-      if (logoInputRef.current) logoInputRef.current.value = "";
-    }
-  };
+// 3) onPickBanner — url is now `string`, so setState matches FormState
+const onPickBanner = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  setUploading((u) => ({ ...u, banner: true }));
+  setError(null);
+  try {
+    const url = await uploadImage(file, "banner"); // url: string ✅
+    setFormData((p) => ({ ...p, bannerImage: url })); // matches FormState ✅
+    setSuccess("Banner image uploaded. Click Save to apply.");
+  } catch (err: any) {
+    setError(err.message || "Failed to upload banner image");
+  } finally {
+    setUploading((u) => ({ ...u, banner: false }));
+    if (bannerInputRef.current) bannerInputRef.current.value = "";
+  }
+};
+
+// 4) onPickLogo — same pattern
+const onPickLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  setUploading((u) => ({ ...u, logo: true }));
+  setError(null);
+  try {
+    const url = await uploadImage(file, "logo"); // url: string ✅
+    setFormData((p) => ({ ...p, logoImage: url }));
+    setSuccess("Logo uploaded. Click Save to apply.");
+  } catch (err: any) {
+    setError(err.message || "Failed to upload logo");
+  } finally {
+    setUploading((u) => ({ ...u, logo: false }));
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  }
+};
 
   // --- Save/Delete ----------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
