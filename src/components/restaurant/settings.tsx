@@ -97,7 +97,7 @@ export default function RestaurantSettings({ restaurant }: Props) {
     setError(null);
     try {
       const url = await uploadImage(file, "banner");
-      setFormData((p) => ({ ...p, bannerImage: url }));
+      setFormData((p) => ({ ...p, banner_image: url }));
       setSuccess("Banner image uploaded. Click Save to apply.");
     } catch (err: any) {
       setError(err.message || "Failed to upload banner image");
