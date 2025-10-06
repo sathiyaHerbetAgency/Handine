@@ -32,6 +32,15 @@ type Restaurant = {
   primary_color?: string;
   font_family?: string;
 };
+type FormState = {
+  name: string;
+  description: string;
+  bannerImage: string; // local state uses camelCase
+  logoImage: string; // local state uses camelCase
+  primaryColor: string;
+  fontFamily: string;
+};
+
 
 type Props = { restaurant: Restaurant };
 
@@ -97,7 +106,7 @@ export default function RestaurantSettings({ restaurant }: Props) {
     setError(null);
     try {
       const url = await uploadImage(file, "banner");
-      setFormData((p) => ({ ...p, banner_image: url }));
+      setFormData((p) => ({ ...p, bannerImage: url }));
       setSuccess("Banner image uploaded. Click Save to apply.");
     } catch (err: any) {
       setError(err.message || "Failed to upload banner image");
